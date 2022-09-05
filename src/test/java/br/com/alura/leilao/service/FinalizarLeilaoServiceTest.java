@@ -21,16 +21,18 @@ import br.com.alura.leilao.model.Usuario;
 class FinalizarLeilaoServiceTest {
 
 	private FinalizarLeilaoService service;
-	
+
 	@Mock
 	private LeilaoDao leilaoDao;
-	
+
+	@Mock
+	private EnviadorDeEmails enviadorDeEmails;
+
 	@BeforeEach
 	void beaforeEach() throws Exception {
 		MockitoAnnotations.initMocks(this);
-		this.service = new FinalizarLeilaoService(leilaoDao);
+		this.service = new FinalizarLeilaoService(leilaoDao, enviadorDeEmails);
 	}
-	
 
 	@Test
 	void deveriaFinalizarUmLeilao() {
@@ -40,22 +42,46 @@ class FinalizarLeilaoServiceTest {
 		Leilao leilao = leiloes.get(0);
 		assertTrue(leilao.isFechado());
 		assertEquals(new BigDecimal(900), leilao.getLanceVencedor().getValor());
-		
+
 		Mockito.verify(leilaoDao).salvar(leilao);
 	}
-	
+
+	@Test
+	void deveriaEnviarEmailVencedor() {
+		List<Leilao> leiloes = leiloes();
+		Mockito.when(leilaoDao.buscarLeiloesExpirados()).thenReturn(leiloes);
+		service.finalizarLeiloesExpirados();
+		Lance lanceVencedor = leiloes.get(0).getLanceVencedor();
+
+		Mockito.verify(enviadorDeEmails).enviarEmailVencedorLeilao(lanceVencedor);
+	}
+
+	@Test
+	void naoDeveriaEnviarEmailVencedorEmCasoDeErro() {
+		List<Leilao> leiloes = leiloes();
+
+		Mockito.when(leilaoDao.buscarLeiloesExpirados()).thenReturn(leiloes);
+		Mockito.when(leilaoDao.salvar(Mockito.any())).thenThrow(RuntimeException.class);
+		try {
+			service.finalizarLeiloesExpirados();
+			Mockito.verifyNoInteractions(enviadorDeEmails);
+		} catch (Exception e) {
+
+		}
+	}
+
 	private List<Leilao> leiloes() {
 		List<Leilao> lista = new ArrayList<Leilao>();
 		Leilao leilao = new Leilao("Celular", new BigDecimal(500), new Usuario("Fulano"));
-		
+
 		Lance primeiro = new Lance(new Usuario("Fulano"), new BigDecimal(600));
 		Lance segundo = new Lance(new Usuario("Ciclano"), new BigDecimal(900));
-		
+
 		leilao.propoe(primeiro);
 		leilao.propoe(segundo);
-		
+
 		lista.add(leilao);
-		
+
 		return lista;
 	}
 
